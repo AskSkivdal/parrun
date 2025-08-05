@@ -1,5 +1,8 @@
 [package]
 name = "parrun"
+description = "A command line tool to run multiple commands at the same time."
+repository = "https://github.com/AskSkivdal/parrun"
+license = "MIT"
 authors = ["Ask Skivdal"]
 version = "0.1.0"
 edition = "2024"
