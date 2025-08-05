@@ -1,0 +1,9 @@
+[package]
+name = "parrun"
+authors = ["Ask Skivdal"]
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.42", features = ["derive"] }
+colored = "3"
