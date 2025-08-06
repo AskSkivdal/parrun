@@ -11,7 +11,8 @@ struct Args {
     processes: usize,
 
     /// The amount of processes to run at the same time
-    #[arg(short, long, default_value_t = ("sh".to_string()))]
+    
+    #[arg(short, long, default_value_t = String::from("sh"))]
     shell: String,
 
     /// Does not output the stdout of the commands
@@ -54,10 +55,10 @@ fn build_command_queue(commands: Vec<String>, argfile: Option<PathBuf>) -> Resul
     }
 }
 
-fn wait_for_free_child(children: &mut Vec<Child>) {
+fn wait_for_free_child(children: &mut Vec<(Child, String)>) -> Vec<(Option<i32>, String)> {
     loop {
 
-        let res: Vec<Child> = children.extract_if(.., |x| {
+        let mut res: Vec<(Child, String)> = children.extract_if(.., |(x, _)| {
             match x.try_wait() {
                 Ok(Some(_v)) => true,
                 Ok(None) => false,
@@ -65,8 +66,10 @@ fn wait_for_free_child(children: &mut Vec<Child>) {
             }
         }).collect();
 
+        let exit_codes: Vec<(Option<i32>, String)> = res.iter_mut().map(|(x, c)| ((*x).wait().unwrap().code(), c.clone())).collect();
+
         if !res.is_empty() {
-            break
+            return exit_codes
         }
 
         thread::sleep(Duration::from_millis(100));
@@ -78,7 +81,9 @@ fn main() {
     let command_queue = build_command_queue(args.commands, args.argfile).unwrap();
     let limit = command_queue.len();
 
-    let mut children: Vec<Child> = Vec::new();
+    let mut children: Vec<(Child, String)> = Vec::new();
+    let mut none_zero_exist: Vec<(String, i32)> = Vec::new();
+    println!("{}", format!("Starting {} processes", args.processes).green().bold());
 
     for (n, l) in command_queue.iter().enumerate() {
         if children.len() > args.processes {
@@ -92,12 +97,24 @@ fn main() {
             .spawn()
             .unwrap();
 
-        children.push(cmd);
+        children.push((cmd, l.clone()));
     }
 
     while children.len() != 0 {
-        wait_for_free_child(&mut children);
+        for (code, command) in wait_for_free_child(&mut children) {
+            match code {
+                // If the exit code is set to 0, then no action is needed
+                Some(0) => continue,
+                // If the exit code is set and is not 0 then add it to the non_zero exit codes to 
+                // be logged at the end of the script.
+                Some(v) => none_zero_exist.push((command.clone(), v)),
+                // If the exit code isnt set, then do nothing.
+                None => continue
+            }
+        }
     }
 
-
+    for (command, status) in none_zero_exist {
+        println!("{}", format!("Command: '{command}' exited with code '{status}'").red())
+    }
 }
